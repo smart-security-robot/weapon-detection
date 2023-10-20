@@ -31,6 +31,7 @@ class YOLOModel:
         self.class_names = ['Grenade', 'Gun', 'Knife', 'Pistol', 'handgun', 'rifle']
         self.load_model(weights_path)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.warmup()
     
     def load_model(self, weights_path):
         try:
@@ -52,7 +53,11 @@ class YOLOModel:
             print("Model is not available. Skipping warmup.")
 
     def detect_objects(self, image):
-        results = self.model(image, stream=True)
+        if image is None:
+            print("No image to detect objects on.")
+            return None
+        print("using: "+ str(self.device))
+        results = self.model(image, stream=True, device=self.device)
         for r in results:
             boxes = r.boxes
             for box in boxes:
@@ -78,9 +83,30 @@ class YOLOModel:
                     cv2.putText(image, label, (x1, y1 - 2), 0, 1, [255, 255, 255], thickness=1, lineType=cv2.LINE_AA)
         return image
     
+    def detect_person(self, image):
+        results = self.model(image, stream=True, device=self.device, classes=0)
+        for r in results:
+            boxes = r.boxes
+            for box in boxes:
+                x1, y1, x2, y2 = box.xyxy[0]
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                conf = math.ceil((box.conf[0] * 100)) / 100
+                cls = int(box.cls[0])
+                class_name = self.class_names[cls]
+                label = f'{class_name}{conf}'
+                t_size = cv2.getTextSize(label, 0, fontScale=1, thickness=2)[0]
+                c2 = x1 + t_size[0], y1 - t_size[1] - 3
+                color = (85, 45, 255)
+                if conf > 0.5:
+                    cv2.rectangle(image, (x1, y1), (x2, y2), color, 3)
+                    cv2.rectangle(image, (x1, y1), c2, color, -1, cv2.LINE_AA)
+
+        return image
+
+    
     def detect_and_track_objects(self, image):
         # Perform object detection and tracking
-        results = self.model.track(image, persist=True)  # Note the `track` method
+        results = self.model.track(image, persist=True, device=self.device)  # Note the `track` method
         for r in results:
             boxes = r.boxes
             for box in boxes:
@@ -100,7 +126,7 @@ class YOLOModel:
         return image
     
     def detect_and_track_objects2(self, image):
-        results = self.model.track(image, persist=True)
+        results = self.model.track(image, persist=True, device=self.device)
 
         boxes = results[0].boxes.xywh.cpu()
 
@@ -135,7 +161,7 @@ class YOLOModel:
 
         # Forward pass through the model
         with torch.no_grad():
-            outputs = self.model(input_tensor)
+            outputs = self.model(input_tensor, device=self.device)
 
         # Process outputs 
         keypoints = self._process_outputs(outputs, image.shape)
@@ -146,6 +172,9 @@ class YOLOModel:
         return annotated_image
 
     def _prepare_image(self, image):
+        # Resize the image
+        image = cv2.resize(image, (640, 640))
+
         # Convert the image from BGR to RGB
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
@@ -233,11 +262,20 @@ class YOLOModel:
         return image
 
     def _draw_single_person(self, image, keypoints):
+        original_height, original_width = image.shape[:2]
+        resized_height, resized_width = (640, 640)
+
+        width_scale = original_width / resized_width
+        height_scale = original_height / resized_height
+
         # Draw keypoints
         for keypoint in keypoints:
             print(f"Processing keypoint: {keypoint}, type: {type(keypoint)}")
             try:
                 x, y = keypoint
+                x = int(x * width_scale)
+                y = int(y * height_scale)
+
                 if x > 0 and y > 0:
                     image = cv2.circle(image, (int(x), int(y)), 5, (0, 0, 255), -1)
             except ValueError as e:
@@ -249,6 +287,12 @@ class YOLOModel:
             try:
                 x1, y1 = keypoints[start_p]
                 x2, y2 = keypoints[end_p]
+
+                x1 = int(x1 * width_scale)
+                y1 = int(y1 * height_scale)
+                x2 = int(x2 * width_scale)
+                y2 = int(y2 * height_scale)
+
             except ValueError as e:
                 print(f"Error unpacking keypoint: {e}.")
                 print(f" - Problematic keypoints: {keypoints[start_p]} and {keypoints[end_p]}.")

@@ -56,6 +56,9 @@ class VideoCamera:
             success, image = self.video.read()
             if not success:
                 break
+            if image is None:
+                print("No image")
+                break
             #image = yolo_model.detect_and_track_objects2(image)
             #image = yolo_model.detect_objects(image)
             image = yolo_model.detect_pose(image)
