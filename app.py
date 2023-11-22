@@ -35,8 +35,8 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Initialize YOLO model
-yolo_model = YOLOModel("src/weights/yolov8s-pose.pt")
+# Initialize models and warmup
+yolo_model = YOLOModel()
 
 @app.get("/")
 async def index(request: Request):
@@ -59,9 +59,16 @@ class VideoCamera:
             if image is None:
                 print("No image")
                 break
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
             #image = yolo_model.detect_and_track_objects2(image)
             #image = yolo_model.detect_objects(image)
-            image = yolo_model.detect_pose(image)
+            #image = yolo_model.detect_pose(image)
+            #image = yolo_model.detect_objects_and_draw(image)
+            result = loop.run_until_complete(yolo_model.pipeline(image))
+            print(result)
             ret, buffer = cv2.imencode('.jpg', image)
             frame = buffer.tobytes()
             self.frame = (b'--frame\r\n'

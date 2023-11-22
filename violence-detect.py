@@ -3,14 +3,15 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.applications.mobilenet import preprocess_input
+from tensorflow.nn import softmax
 
 # Load the model
 model = load_model('violence_detection.h5')
 
-# Define the video path; you can use a file or a camera index
+# Define the video path
 video_path = 'test-v.mp4'
 
-# Define a function to preprocess the video frames
+# Define a function to preprocess video frames
 def preprocess_frame(frame):
     frame = cv2.resize(frame, (64, 64))
     frame = preprocess_input(frame)
@@ -19,22 +20,38 @@ def preprocess_frame(frame):
 # Open the video file or capture device
 cap = cv2.VideoCapture(video_path)
 
+# Initialize a list to store frames
+frames = []
+
+# Frame sequence length expected by the model
+sequence_length = 16
+
 while True:
     ret, frame = cap.read()
     if not ret:
-        break  # Break the loop if the video ends or there's an issue
+        break
     
-    # Preprocess the frame
+    # Preprocess the frame and add it to the sequence
     preprocessed_frame = preprocess_frame(frame)
-    
-    # Expand dimensions to match the model's expected input
-    preprocessed_frame = np.expand_dims(preprocessed_frame, axis=0)
-    
-    # Perform inference
-    predictions = model.predict(preprocessed_frame)
-    
-    # Display the predictions (you might want to further process the output)
-    print(f"Predictions: {predictions}")
+    frames.append(preprocessed_frame)
+
+    # Once we have enough frames for a sequence, predict
+    if len(frames) == sequence_length:
+        # Convert list of frames to numpy array
+        frame_sequence = np.array(frames)
+
+        # Add batch dimension and predict
+        frame_sequence = np.expand_dims(frame_sequence, axis=0)
+        predictions = model.predict(frame_sequence)
+
+        # Normalize the predictions
+        normalized_predictions = softmax(predictions).numpy()
+
+        # Reset frames list for next sequence
+        frames = []
+
+        # Display the normalized predictions
+        print(f"Normalized Predictions: {normalized_predictions}")
     
     # Display the frame (optional)
     cv2.imshow('Frame', frame)
