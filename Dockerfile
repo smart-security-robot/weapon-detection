@@ -1,6 +1,7 @@
 # Start FROM Nvidia PyTorch image https://ngc.nvidia.com/catalog/containers/nvidia:l4t-pytorch
 FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3
 #FROM python:3.9.0
+
 # Install linux packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -36,13 +37,14 @@ RUN apt-get update && \
 # Create working directory
 WORKDIR /usr/src/weapon-detection
 
+# Copy only the requirements.txt first to leverage Docker cache
+COPY requirements.txt /usr/src/weapon-detection/
+RUN pip install --no-cache-dir --trusted-host pypi.python.org -r requirements.txt
+RUN pip install --no-cache ultralytics --no-deps
+
 # Copy the current directory contents into the container at /usr/src/weapon-detection
 COPY . /usr/src/weapon-detection
 
-# Install any needed packages specified in requirements.txt
-# Using --no-cache-dir to keep the image size down
-RUN pip3 install --no-cache-dir --trusted-host pypi.python.org -r requirements.txt
-RUN pip install --no-cache ultralytics --no-deps
 # Set environment variables
 ENV OMP_NUM_THREADS=1
 

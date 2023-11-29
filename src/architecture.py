@@ -104,16 +104,10 @@ class YOLOModel:
 
         height, width, _ = image.shape
 
-        x_margin = int((x2 - x1) * self.person_bbox_margin )
-        y_margin = int((y2 - y1) * self.person_bbox_margin)
-
-        x1 = max(0, x1 - x_margin)
-        y1 = max(0, y1 - y_margin)
-        x2 = min(width, x2 + x_margin)
-        y2 = min(height, y2 + y_margin)
+        x1, y1, x2, y2 = self.adjust_bounding_box(x1, y1, x2, y2, width, height, self.person_bbox_margin)
 
         if x2 - x1 <= 0 or y2 - y1 <= 0:
-            print("Invalid person bounding box.")
+            print(f"Invalid person bounding box in detect objects: {x1, y1, x2, y2}")
             return False
 
         image = image[y1:y2, x1:x2]
@@ -471,35 +465,52 @@ class YOLOModel:
             return (0, 149, 255)
         else:
             return (85, 45, 255)
-        
 
-    def face_recognition_users(self, image, person_bbx):
-        x1, y1, x2, y2 = [int(x) for x in person_bbx]
-
-        height, width, _ = image.shape
-
-        x_margin = int((x2 - x1) * self.person_bbox_margin )
-        y_margin = int((y2 - y1) * self.person_bbox_margin)
+    @staticmethod    
+    def adjust_bounding_box(x1, y1, x2, y2, width, height, margin):
+        x_margin = int((x2 - x1) * margin)
+        y_margin = int((y2 - y1) * margin)
 
         x1 = max(0, x1 - x_margin)
         y1 = max(0, y1 - y_margin)
         x2 = min(width, x2 + x_margin)
         y2 = min(height, y2 + y_margin)
 
+        x1 = min(x1, x2-1)
+        y1 = min(y1, y2-1)
+
+        return x1, y1, x2, y2
+
+    def face_recognition_users(self, image, person_bbx):
+        x1, y1, x2, y2 = [int(x) for x in person_bbx]
+
+        height, width, _ = image.shape
+
+        x1, y1, x2, y2 = self.adjust_bounding_box(x1, y1, x2, y2, width, height, self.person_bbox_margin)
+
         if x2 - x1 <= 0 or y2 - y1 <= 0:
-            print("Invalid person bounding box.")
+            print(f"Invalid person bounding box in face recognition: {x1, y1, x2, y2}")
             return False
         
         image = image[y1:y2, x1:x2]
 
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
         face_encodings = face_recognition.face_encodings(image)
         if len(face_encodings) == 0:
+            print("No face found")
             return False
         else:
             #send request to get all users
             users = get_all_users()
+
+            if users is None or not isinstance(users, list):
+                print("No users found")
+                return False
+            
+            valid_users = [user for user in users if user['face_vector'] is not None]
             #get all face_encodings from users also append first name and last name
-            face_encodings_users = [np.array(user['face_vector']) for user in users if user['face_vector'] is not None]
+            face_encodings_users = [np.array(user['face_vector']) for user in valid_users]
             #get all first names and last names
             first_names = [user['first_name'] for user in users if user['face_vector'] is not None]
             last_names = [user['last_name'] for user in users if user['face_vector'] is not None]
@@ -538,15 +549,15 @@ class YOLOModel:
                 print("Person confidence is too low")
                 break
 
-            if track_id not in faces_recognized:
-                #only process each person once
-                faces_recognized.append(track_id)
-                #recognize faces
-                name = self.face_recognition_users(image, person_bbx)
-                if name:
-                    person_processed.append((track_id, person_bbx, name))
-            else:
-                continue
+            # if track_id not in faces_recognized:
+            #     #only process each person once
+            #     faces_recognized.append(track_id)
+            #     #recognize faces
+            #     name = self.face_recognition_users(image, person_bbx)
+            #     if name:
+            #         person_processed.append((track_id, person_bbx, name))
+            # else:
+            #     continue
 
             # Step 3: Detect weapons in the person ROI
             weapon_results = await self.detect_objects(image, person_bbx)
@@ -571,11 +582,22 @@ class YOLOModel:
                     img = Image.fromarray(image)  # Convert to PIL Image object
                     img.save(buffered, format="JPEG")
                     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                    #get person name
-                    person_name = [person[2] for person in person_processed if person[0] == track_id][0]
-                    #if person name is not in the list then send unknown
-                    if person_name == "":
+                    
+                    name = self.face_recognition_users(image, person_bbx)
+
+                    if name:
+                        person_name = name
+                    else:
                         person_name = "Unknown"
+                    #get person name
+                    #person_name = [person[2] for person in person_processed if person[0] == track_id][0]
+                    #matching_person = next((person for person in person_processed if person[0] == track_id), None)
+
+                    #if person name is not in the list then send unknown
+                    # if matching_person:
+                    #     person_name = matching_person[2]
+                    # else:
+                    #     person_name = "Unknown"
                     #send incident report
                     send_incident("threat", time.time(), img_str, "location", person_name)
 
