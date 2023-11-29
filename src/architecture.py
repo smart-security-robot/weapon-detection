@@ -7,10 +7,11 @@ import torch
 from core.settings import settings
 from starlette.concurrency import run_in_threadpool
 import time
-from src.incident import send_incident
+from src.incident import send_incident, get_all_users
 import base64
 import io
 from PIL import Image
+import face_recognition
 
 track_history = defaultdict(lambda: [])
 
@@ -472,6 +473,54 @@ class YOLOModel:
             return (85, 45, 255)
         
 
+    def face_recognition_users(self, image, person_bbx):
+        x1, y1, x2, y2 = [int(x) for x in person_bbx]
+
+        height, width, _ = image.shape
+
+        x_margin = int((x2 - x1) * self.person_bbox_margin )
+        y_margin = int((y2 - y1) * self.person_bbox_margin)
+
+        x1 = max(0, x1 - x_margin)
+        y1 = max(0, y1 - y_margin)
+        x2 = min(width, x2 + x_margin)
+        y2 = min(height, y2 + y_margin)
+
+        if x2 - x1 <= 0 or y2 - y1 <= 0:
+            print("Invalid person bounding box.")
+            return False
+        
+        image = image[y1:y2, x1:x2]
+
+        face_encodings = face_recognition.face_encodings(image)
+        if len(face_encodings) == 0:
+            return False
+        else:
+            #send request to get all users
+            users = get_all_users()
+            #get all face_encodings from users also append first name and last name
+            face_encodings_users = [np.array(user['face_vector']) for user in users if user['face_vector'] is not None]
+            #get all first names and last names
+            first_names = [user['first_name'] for user in users if user['face_vector'] is not None]
+            last_names = [user['last_name'] for user in users if user['face_vector'] is not None]
+            distances = face_recognition.face_distance(face_encodings_users, face_encodings[0])
+            best_match_index = np.argmin(distances)
+            best_match_distance = distances[best_match_index]
+            if best_match_distance > 0.4:            
+                return False
+            else:
+                #concatenate first name and last name
+                name = first_names[best_match_index] + " " + last_names[best_match_index]
+                return name
+
+            
+
+
+            #compare face_encodings with users
+            #if match then return user name on response
+            #else return False
+
+
     async def pipeline(self, image):
         # Step 1: Detect and track persons
         person_results = await self.detect_and_track_person(image)
@@ -480,11 +529,23 @@ class YOLOModel:
             return False
         
         detected_weapons = []
+        faces_recognized = []
+        person_processed = []
 
         for track_id, person_bbx, conf in person_results:
 
             if conf < settings.person_detection_thresh:
                 print("Person confidence is too low")
+                break
+
+            if track_id not in faces_recognized:
+                #only process each person once
+                faces_recognized.append(track_id)
+                #recognize faces
+                name = self.face_recognition_users(image, person_bbx)
+                if name:
+                    person_processed.append((track_id, person_bbx, name))
+            else:
                 continue
 
             # Step 3: Detect weapons in the person ROI
@@ -510,9 +571,13 @@ class YOLOModel:
                     img = Image.fromarray(image)  # Convert to PIL Image object
                     img.save(buffered, format="JPEG")
                     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-
+                    #get person name
+                    person_name = [person[2] for person in person_processed if person[0] == track_id][0]
+                    #if person name is not in the list then send unknown
+                    if person_name == "":
+                        person_name = "Unknown"
                     #send incident report
-                    send_incident("threat", time.time(), img_str, "location")
+                    send_incident("threat", time.time(), img_str, "location", person_name)
 
 
 

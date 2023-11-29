@@ -10,8 +10,9 @@ class Settings():
     weapon_detection_weight = "src/weights/weapons_100_s.pt"
     pose_estimation_weight = "src/weights/yolov8s-pose.pt"
     person_bbox_margin = 0.2
-    server_api_token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBhZG1pbi5jb20iLCJleHAiOjE3MzQ5NzI1MzF9.9-5NmRN8-gjnP_HFfzoqrIXBPy47l-LDHalxD1ukW4s"
-    server_url_incidents = "http://150.136.82.27:8000/incidents/incidents/"
+    server_api_token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGFlQGFsYWUuY29tIiwiZXhwIjoxNzM3MjEyNjMyfQ.jKHS_31dQ_fQAq_GazoDWV6eAJWpDURkFGJ2nmrMVUA"
+    server_url_incidents = "http://localhost:8000/incidents/incidents/"
+    server_url_users = "http://localhost:8000/users/users/"
 
 
 settings = Settings()
