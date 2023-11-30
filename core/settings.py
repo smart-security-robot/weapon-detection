@@ -1,6 +1,6 @@
 
 class Settings():
-    weapons_detection_thresh = 0.8
+    weapons_detection_thresh = 0.6
     person_detection_thresh = 0.6
     threat_detection_thresh = 0.9
 
@@ -10,9 +10,9 @@ class Settings():
     weapon_detection_weight = "src/weights/weapons_100_s.pt"
     pose_estimation_weight = "src/weights/yolov8s-pose.pt"
     person_bbox_margin = 0.2
-    server_api_token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBhZG1pbi5jb20iLCJleHAiOjE3MzcyMTkxMTZ9.NNJWOzmmvQrwB1HvFKU9KCsiNVExiHNYWwE08Z-02lE"
-    server_url_incidents = "http://150.136.82.27:8000/incidents/incidents/"
-    server_url_users = "http://150.136.82.27:8000/users/users/"
+    server_api_token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBhZG1pbi5jb20iLCJleHAiOjE3MzczMDc0MjV9.DWha_BbA5OUxX4ozDkZJPDNJwGfMG7mrZyRisKrG99g"
+    server_url_incidents = "http://192.168.0.61:8000/incidents/incidents/"
+    server_url_users = "http://192.168.0.61:8000/users/users/"
 
 
 settings = Settings()

@@ -12,6 +12,7 @@ import base64
 import io
 from PIL import Image
 import face_recognition
+import datetime
 
 track_history = defaultdict(lambda: [])
 
@@ -100,17 +101,20 @@ class YOLOModel:
 
 
     async def detect_objects(self, image, person_bbx):
-        x1, y1, x2, y2 = [int(x) for x in person_bbx]
-
-        height, width, _ = image.shape
-
-        x1, y1, x2, y2 = self.adjust_bounding_box(x1, y1, x2, y2, width, height, self.person_bbox_margin)
-
-        if x2 - x1 <= 0 or y2 - y1 <= 0:
-            print(f"Invalid person bounding box in detect objects: {x1, y1, x2, y2}")
+        if image.size == 0:
+            print("No image to detect objects on.")
             return False
+        # x1, y1, x2, y2 = [int(x) for x in person_bbx]
 
-        image = image[y1:y2, x1:x2]
+        # height, width, _ = image.shape
+
+        # x1, y1, x2, y2 = self.adjust_bounding_box(x1, y1, x2, y2, width, height, self.person_bbox_margin)
+
+        # if x2 - x1 <= 0 or y2 - y1 <= 0:
+        #     print(f"Invalid person bounding box in detect objects: {x1, y1, x2, y2}")
+        #     return False
+
+        # image = image[y1:y2, x1:x2]
 
         results = self.weapon_model(image, stream=True, device=self.device)
 
@@ -482,17 +486,17 @@ class YOLOModel:
         return x1, y1, x2, y2
 
     def face_recognition_users(self, image, person_bbx):
-        x1, y1, x2, y2 = [int(x) for x in person_bbx]
+        # x1, y1, x2, y2 = [int(x) for x in person_bbx]
 
-        height, width, _ = image.shape
+        # height, width, _ = image.shape
 
-        x1, y1, x2, y2 = self.adjust_bounding_box(x1, y1, x2, y2, width, height, self.person_bbox_margin)
+        # x1, y1, x2, y2 = self.adjust_bounding_box(x1, y1, x2, y2, width, height, self.person_bbox_margin)
 
-        if x2 - x1 <= 0 or y2 - y1 <= 0:
-            print(f"Invalid person bounding box in face recognition: {x1, y1, x2, y2}")
-            return False
+        # if x2 - x1 <= 0 or y2 - y1 <= 0:
+        #     print(f"Invalid person bounding box in face recognition: {x1, y1, x2, y2}")
+        #     return False
         
-        image = image[y1:y2, x1:x2]
+        # image = image[y1:y2, x1:x2]
 
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -578,8 +582,9 @@ class YOLOModel:
                     detected_weapons.append((track_id, weapon_results))
                     #send incident report
                     #convert image to base64 then send
+                    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(image_rgb)  # Convert to PIL Image object
                     buffered = io.BytesIO()
-                    img = Image.fromarray(image)  # Convert to PIL Image object
                     img.save(buffered, format="JPEG")
                     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
                     
@@ -599,10 +604,13 @@ class YOLOModel:
                     # else:
                     #     person_name = "Unknown"
                     #send incident report
-                    send_incident("threat", time.time(), img_str, "location", person_name)
+                    
+                    #get label of detected weapon
+                    label = weapon_results[0]
+                    current_time = datetime.datetime.now().isoformat()
+                    send_incident("Detected: "+label, current_time, img_str, "location", person_name)
 
-
-
+            
 
 
         return detected_weapons if detected_weapons else False

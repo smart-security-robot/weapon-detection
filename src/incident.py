@@ -30,7 +30,7 @@ def get_all_users():
     response = requests.get(url_get_users, headers=headers)
 
     print(response.json())
-    
+    return response.json()
 
 
 # data = {
